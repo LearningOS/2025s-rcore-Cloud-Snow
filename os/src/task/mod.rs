@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -153,6 +154,54 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// 增加当前任务的系统调用计数
+    fn inc_syscall_count(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        let count = inner.tasks[cur]
+            .syscall_count
+            .entry(syscall_id)
+            .or_insert(0);
+        *count += 1;
+    }
+
+    /// 获取当前任务的系统调用计数
+    fn get_syscall_count(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur]
+            .syscall_count
+            .get(&syscall_id)
+            .copied()
+            .unwrap_or(0)
+    }
+}
+
+/// 申请一段物理内存，将其映射到当前任务的虚拟地址空间中start_va到end_va
+pub fn insert_framed_area(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let cur = inner.current_task;
+    inner.tasks[cur]
+        .memory_set
+        .insert_framed_area(start_va, end_va, permission);
+}
+
+/// 删除当前任务的虚拟地址空间中指定范围的映射
+pub fn remove_area(start_va: VirtAddr, end_va: VirtAddr) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let cur = inner.current_task;
+    inner.tasks[cur].memory_set.remove_area(start_va, end_va)
+}
+
+/// 增加当前任务的系统调用计数
+pub fn inc_syscall_count(syscall_id: usize) {
+    TASK_MANAGER.inc_syscall_count(syscall_id);
+}
+
+/// 获取当前任务的系统调用计数
+pub fn get_syscall_count(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_syscall_count(syscall_id)
 }
 
 /// Run the first task in task list.

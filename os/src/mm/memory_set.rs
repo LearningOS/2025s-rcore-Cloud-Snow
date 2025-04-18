@@ -70,6 +70,27 @@ impl MemorySet {
         }
         self.areas.push(map_area);
     }
+    /// 删除一个映射区域
+    pub fn remove_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> isize {
+        if !start_va.aligned() || !end_va.aligned() {
+            error!(
+                "kernel: remove_area failed, start_va {:?} or end_va {:?} not aligned",
+                start_va, end_va
+            );
+            return -1;
+        }
+        let vpn_range = VPNRange::new(start_va.floor(), end_va.ceil());
+        for (i, area) in self.areas.iter_mut().enumerate() {
+            if area.vpn_range == vpn_range {
+                area.unmap(&mut self.page_table);
+                self.areas.remove(i);
+                return 0;
+            }
+        }
+        error!("kernel: remove_area failed, area not found");
+        -1
+    }
+
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {
         self.page_table.map(
@@ -311,6 +332,7 @@ impl MapArea {
     }
     pub fn map(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
+            debug!("mapping vpn {:?}", vpn);
             self.map_one(page_table, vpn);
         }
     }
