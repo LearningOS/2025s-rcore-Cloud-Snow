@@ -2,7 +2,7 @@
 use alloc::sync::Arc;
 
 use crate::{
-    config::PAGE_SIZE,
+    config::{BIG_STRIDE, PAGE_SIZE},
     loader::get_app_data_by_name,
     mm::{
         from_token, translated_byte_buffer, translated_refmut, translated_str, MapPermission,
@@ -260,10 +260,21 @@ pub fn sys_spawn(path: *const u8) -> isize {
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_set_priority(prio: isize) -> isize {
+    let pid = current_task().unwrap().pid.0;
+    trace!("kernel:pid[{}] sys_set_priority", pid);
+    if prio <= 1 {
+        error!(
+            "kernel:pid[{}] sys_set_priority prio {} is not valid(should >= 2)",
+            pid, prio
+        );
+        return -1;
+    }
+
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    inner.priority = prio as usize;
+    inner.pass_value = BIG_STRIDE / prio as usize;
+    inner.stride = 0;
+    prio
 }
