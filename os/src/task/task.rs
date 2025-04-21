@@ -206,6 +206,16 @@ impl TaskControlBlock {
         // ---- release parent PCB
     }
 
+    /// 新建子进程
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let new_task = Arc::new(Self::new(elf_data));
+        new_task.inner_exclusive_access().parent = Some(Arc::downgrade(self));
+        self.inner_exclusive_access()
+            .children
+            .push(new_task.clone());
+        new_task
+    }
+
     /// get pid of process
     pub fn getpid(&self) -> usize {
         self.pid.0
