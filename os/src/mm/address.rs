@@ -271,3 +271,8 @@ where
 }
 /// a simple range structure for virtual page number
 pub type VPNRange = SimpleRange<VirtPageNum>;
+impl PartialEq for VPNRange {
+    fn eq(&self, other: &Self) -> bool {
+        self.l == other.l && self.r == other.r
+    }
+}

@@ -7,6 +7,7 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
@@ -74,6 +75,22 @@ pub fn run_tasks() {
             warn!("no tasks available in run_tasks");
         }
     }
+}
+
+/// 申请一段物理内存，将其映射到当前任务的虚拟地址空间中start_va到end_va
+pub fn insert_framed_area(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+    let cur = current_task().unwrap();
+    let mut inner = cur.inner_exclusive_access();
+    inner
+        .memory_set
+        .insert_framed_area(start_va, end_va, permission);
+}
+
+/// 删除当前任务的虚拟地址空间中指定范围的映射
+pub fn remove_area(start_va: VirtAddr, end_va: VirtAddr) -> isize {
+    let cur = current_task().unwrap();
+    let mut inner = cur.inner_exclusive_access();
+    inner.memory_set.remove_area(start_va, end_va)
 }
 
 /// Get current task through take, leaving a None in its place

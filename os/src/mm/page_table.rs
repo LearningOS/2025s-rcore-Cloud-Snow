@@ -213,3 +213,8 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
+
+/// Temporarily used to get arguments from user space.
+pub fn from_token(token: usize) -> PageTable {
+    PageTable::from_token(token)
+}
