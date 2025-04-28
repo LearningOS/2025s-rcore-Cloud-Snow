@@ -1,7 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{BIG_STRIDE, TRAP_CONTEXT_BASE};
 use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
@@ -71,6 +71,15 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Priority
+    pub priority: usize,
+
+    /// Stride
+    pub stride: usize,
+
+    /// Pass value
+    pub pass_value: usize,
 }
 
 impl TaskControlBlockInner {
@@ -93,6 +102,11 @@ impl TaskControlBlockInner {
             self.fd_table.push(None);
             self.fd_table.len() - 1
         }
+    }
+
+    /// increment the stride of the task
+    pub fn inc_stride(&mut self) {
+        self.stride += self.pass_value;
     }
 }
 
@@ -135,6 +149,9 @@ impl TaskControlBlock {
                     ],
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    priority: 16,
+                    stride: 0,
+                    pass_value: BIG_STRIDE / 16,
                 })
             },
         };
@@ -216,6 +233,9 @@ impl TaskControlBlock {
                     fd_table: new_fd_table,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    priority: 16,
+                    stride: 0,
+                    pass_value: BIG_STRIDE / 16,
                 })
             },
         });
@@ -229,6 +249,16 @@ impl TaskControlBlock {
         task_control_block
         // **** release child PCB
         // ---- release parent PCB
+    }
+
+    /// 新建子进程
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let new_task = Arc::new(Self::new(elf_data));
+        new_task.inner_exclusive_access().parent = Some(Arc::downgrade(self));
+        self.inner_exclusive_access()
+            .children
+            .push(new_task.clone());
+        new_task
     }
 
     /// get pid of process

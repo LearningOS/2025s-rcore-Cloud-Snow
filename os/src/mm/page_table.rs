@@ -145,12 +145,14 @@ impl PageTable {
     }
     /// get the physical address from the virtual address
     pub fn translate_va(&self, va: VirtAddr) -> Option<PhysAddr> {
-        self.find_pte(va.clone().floor()).map(|pte| {
-            let aligned_pa: PhysAddr = pte.ppn().into();
+        let pte = self.find_pte(va.clone().floor())?;
+        if pte.is_valid() {
+            let pa: PhysAddr = pte.ppn().into();
             let offset = va.page_offset();
-            let aligned_pa_usize: usize = aligned_pa.into();
-            (aligned_pa_usize + offset).into()
-        })
+            Some(PhysAddr(pa.0 + offset))
+        } else {
+            None
+        }
     }
     /// get the token from the page table
     pub fn token(&self) -> usize {

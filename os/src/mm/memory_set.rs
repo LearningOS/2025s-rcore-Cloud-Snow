@@ -78,6 +78,30 @@ impl MemorySet {
             self.areas.remove(idx);
         }
     }
+    /// 删除一个映射区域
+    pub fn remove_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> isize {
+        if !start_va.aligned() || !end_va.aligned() {
+            error!(
+                "kernel: remove_area failed, start_va {:?} or end_va {:?} not aligned",
+                start_va, end_va
+            );
+            return -1;
+        }
+        let vpn_range = VPNRange::new(start_va.floor(), end_va.ceil());
+        if let Some((idx, area)) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_, area)| area.vpn_range == vpn_range)
+        {
+            area.unmap(&mut self.page_table);
+            self.areas.remove(idx);
+            return 0;
+        }
+        error!("kernel: remove_area failed, area not found");
+        -1
+    }
+
     /// Add a new MapArea into this MemorySet.
     /// Assuming that there are no conflicts in the virtual address
     /// space.

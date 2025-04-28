@@ -5,8 +5,9 @@
 //! and the replacement and transfer of control flow of different applications are executed.
 
 use super::__switch;
-use super::{fetch_task, TaskStatus};
+use super::{fetch_task_with_stride, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
@@ -55,7 +56,7 @@ lazy_static! {
 pub fn run_tasks() {
     loop {
         let mut processor = PROCESSOR.exclusive_access();
-        if let Some(task) = fetch_task() {
+        if let Some(task) = fetch_task_with_stride() {
             let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
             // access coming task TCB exclusively
             let mut task_inner = task.inner_exclusive_access();
@@ -74,6 +75,22 @@ pub fn run_tasks() {
             warn!("no tasks available in run_tasks");
         }
     }
+}
+
+/// 申请一段物理内存，将其映射到当前任务的虚拟地址空间中start_va到end_va
+pub fn insert_framed_area(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+    let cur = current_task().unwrap();
+    let mut inner = cur.inner_exclusive_access();
+    inner
+        .memory_set
+        .insert_framed_area(start_va, end_va, permission);
+}
+
+/// 删除当前任务的虚拟地址空间中指定范围的映射
+pub fn remove_area(start_va: VirtAddr, end_va: VirtAddr) -> isize {
+    let cur = current_task().unwrap();
+    let mut inner = cur.inner_exclusive_access();
+    inner.memory_set.remove_area(start_va, end_va)
 }
 
 /// Get current task through take, leaving a None in its place
