@@ -1,10 +1,11 @@
 use crate::{
     fs::{open_file, OpenFlags},
-    mm::{translated_ref, translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_ref, translated_refmut, translated_str},
     task::{
         current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
         suspend_current_and_run_next, SignalFlags,
     },
+    timer::get_time_us,
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
 
@@ -151,12 +152,38 @@ pub fn sys_kill(pid: usize, signal: u32) -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-        current_task().unwrap().process.upgrade().unwrap().getpid()
-    );
-    -1
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    let pid = current_process().getpid();
+    trace!("kernel:pid[{}] sys_get_time", pid);
+    //获取物理页帧可变引用
+    let time_val_size = core::mem::size_of::<TimeVal>();
+    let mut buffer = translated_byte_buffer(current_user_token(), ts as *const u8, time_val_size);
+
+    //计算buffer中切片总长度
+    let len = buffer.iter().map(|b| b.len()).sum::<usize>();
+    if len != time_val_size {
+        trace!("kernel:pid[{}] sys_get_time buffer size error", pid);
+        return -1;
+    }
+    //获取当前时间
+    let time = get_time_us();
+    let time_val = TimeVal {
+        sec: time / 1_000_000,
+        usec: time % 1_000_000,
+    };
+    //将时间值转换为字节数组
+    let time_val_bytes =
+        unsafe { core::slice::from_raw_parts(&time_val as *const TimeVal as *const u8, len) };
+    //将字节数组写入buffer中
+    let offset = 0;
+    for slice in buffer.iter_mut() {
+        let slice_len = slice.len();
+        let time_val_slice = &time_val_bytes[offset..offset + slice_len];
+        //将时间值写入buffer中
+        slice.copy_from_slice(time_val_slice);
+    }
+
+    0
 }
 
 /// mmap syscall
