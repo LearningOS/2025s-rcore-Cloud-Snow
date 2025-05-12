@@ -4,6 +4,7 @@ use crate::{
     trap::{trap_handler, TrapContext},
 };
 use alloc::sync::Arc;
+use alloc::vec;
 /// thread create syscall
 pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     trace!(
@@ -36,11 +37,33 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     let new_task_tid = new_task_res.tid;
     let mut process_inner = process.inner_exclusive_access();
     // add new thread to current process
-    let tasks = &mut process_inner.tasks;
-    while tasks.len() < new_task_tid + 1 {
-        tasks.push(None);
+    let mutex_num = process_inner.available_mutex.len();
+    let sem_num = process_inner.available_semaphore.len();
+    while process_inner.tasks.len() < new_task_tid + 1 {
+        process_inner.tasks.push(None);
+        process_inner.allocation_mutex.push(vec![0; mutex_num]);
+        process_inner.need_mutex.push(vec![0; mutex_num]);
+        process_inner.allocation_semaphore.push(vec![0; sem_num]);
+        process_inner.need_semaphore.push(vec![0; sem_num]);
+        debug!(
+            "kernel:pid[{}] tid[{}] sys_thread_create: add new task [{}]",
+            process.getpid(),
+            current_task()
+                .unwrap()
+                .inner_exclusive_access()
+                .res
+                .as_ref()
+                .unwrap()
+                .tid,
+            new_task_tid
+        );
     }
-    tasks[new_task_tid] = Some(Arc::clone(&new_task));
+    process_inner.tasks[new_task_tid] = Some(Arc::clone(&new_task));
+    process_inner.allocation_mutex[new_task_tid] = vec![0; mutex_num];
+    process_inner.need_mutex[new_task_tid] = vec![0; mutex_num];
+    process_inner.allocation_semaphore[new_task_tid] = vec![0; sem_num];
+    process_inner.need_semaphore[new_task_tid] = vec![0; sem_num];
+
     let new_task_trap_cx = new_task_inner.get_trap_cx();
     *new_task_trap_cx = TrapContext::app_init_context(
         entry,

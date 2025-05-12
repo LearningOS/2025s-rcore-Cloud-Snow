@@ -14,7 +14,6 @@ use alloc::sync::{Arc, Weak};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefMut;
-
 /// Process Control Block
 pub struct ProcessControlBlock {
     /// immutable
@@ -49,6 +48,20 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// 是否开启死锁检测
+    pub enable_deadlock_detect: bool,
+    /// 可利用资源向量，mutex
+    pub available_mutex: Vec<usize>,
+    /// 分配矩阵，表示每类资源已分配给每个线程的资源数，mutex
+    pub allocation_mutex: Vec<Vec<usize>>,
+    /// 需求矩阵，表示每个线程对每类资源的需求数，mutex
+    pub need_mutex: Vec<Vec<usize>>,
+    /// 可利用资源向量，semaphore
+    pub available_semaphore: Vec<usize>,
+    /// 分配矩阵，表示每类资源已分配给每个线程的资源数，semaphore
+    pub allocation_semaphore: Vec<Vec<usize>>,
+    /// 需求矩阵，表示每个线程对每类资源的需求数，semaphore
+    pub need_semaphore: Vec<Vec<usize>>,
 }
 
 impl ProcessControlBlockInner {
@@ -119,6 +132,13 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    enable_deadlock_detect: false,
+                    available_mutex: Vec::new(),
+                    allocation_mutex: vec![Vec::new(); 1],
+                    need_mutex: vec![Vec::new(); 1],
+                    available_semaphore: Vec::new(),
+                    allocation_semaphore: vec![Vec::new(); 1],
+                    need_semaphore: vec![Vec::new(); 1],
                 })
             },
         });
@@ -245,6 +265,13 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    enable_deadlock_detect: false,
+                    available_mutex: Vec::new(),
+                    allocation_mutex: vec![Vec::new(); 1],
+                    need_mutex: vec![Vec::new(); 1],
+                    available_semaphore: Vec::new(),
+                    allocation_semaphore: vec![Vec::new(); 1],
+                    need_semaphore: vec![Vec::new(); 1],
                 })
             },
         });
